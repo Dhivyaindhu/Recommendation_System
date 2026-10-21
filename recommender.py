@@ -7,10 +7,12 @@ def tokens(text):
     return set(re.findall(r"[a-z]+", str(text).lower()))
 
 
-def recommend(df, matrix, encode, category, query="", top_k=10,
-              max_per_brand=3, w_sem=0.8, w_kw=0.2):
-    # 1. Filter by category (and skip rows with no image)
-    mask = (df.category == category) & (df.image_url.fillna("").str.len() > 0)
+def recommend(df, matrix, encode, category, min_price, max_price,
+              query="", top_k=10, max_per_brand=3,
+              w_sem=0.8, w_kw=0.2):
+    # 1. Filters: category, price range, and an image to show
+    mask = (df.category == category) & (df.price >= min_price) & (df.price <= max_price)
+    mask &= df.image_url.fillna("").str.len() > 0
     sub = df[mask]
     if sub.empty:
         return sub
