@@ -26,6 +26,21 @@ def load_data():
     df = pd.read_csv(DATA_PATH)
     emb = np.load(EMB_PATH)
     assert len(df) == len(emb), "products.csv and embeddings.npy are out of sync"
+
+    # Make price numeric (handles "₹4,500", "Rs. 2,999", plain numbers, blanks).
+    # Rows are NOT dropped, so the order still matches embeddings.npy.
+    df["price"] = (
+        df["price"].astype(str)
+        .str.replace(r"[^\d.]", "", regex=True)
+        .replace("", np.nan)
+        .astype(float)
+    )
+
+    # Clean text columns used by the filters and the cards
+    df["category"] = df["category"].astype(str).str.strip()
+    df["image_url"] = df["image_url"].fillna("").astype(str)
+    df["brand"] = df["brand"].fillna("").astype(str)
+    df["source"] = df["source"].fillna("").astype(str)
     return df, emb
 
 
@@ -64,3 +79,5 @@ if go:
                 label = "Instagram post" if r.source == "instagram" else "View product"
                 st.markdown(f"[{label}]({r.product_url})")
                 st.caption(f"Match: {r.score:.2f}")
+else:
+    st.info("Choose a category and price range in the sidebar, then click Recommend.")
