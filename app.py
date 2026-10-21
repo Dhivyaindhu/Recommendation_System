@@ -27,7 +27,8 @@ def load_data():
     emb = np.load(EMB_PATH)
     assert len(df) == len(emb), "products.csv and embeddings.npy are out of sync"
 
-    # Make price numeric. Rows are NOT dropped, so the order still matches embeddings.npy.
+    # Price is only displayed now, but keep it numeric so it formats safely.
+    # Rows are NOT dropped, so the order still matches embeddings.npy.
     df["price"] = (
         df["price"].astype(str)
         .str.replace(r"[^\d.]", "", regex=True)
@@ -46,62 +47,36 @@ df, emb = load_data()
 encode = lambda text: model.encode([text], normalize_embeddings=True)
 
 st.title("Fashion Recommender")
-st.caption("Pick a category and budget, and we rank matching products from several brands.")
+st.caption("Pick a category and we rank matching products from several brands.")
 
 CATEGORIES = ["Cotton Saree", "Kanchi Saree", "Fancy Saree", "Silk Saree", "Shirts", "Kurtis"]
 
 with st.sidebar:
     category = st.selectbox("Category", CATEGORIES)
-
-    cat_df = df[df.category == category]
-    cat_prices = cat_df["price"].dropna()
-
-    if cat_prices.empty:
-        st.warning("No priced products in this category yet.")
-        price_min, price_max = 0, 0
-    else:
-        lo = int(cat_prices.min())
-        hi = int(cat_prices.max()) + 1
-        if lo >= hi:
-            hi = lo + 1
-
-        # Default: the middle 80% of prices, so the slider never starts collapsed
-        default = (int(cat_prices.quantile(0.1)), int(cat_prices.quantile(0.9)))
-        if default[0] >= default[1]:
-            default = (lo, hi)
-
-        price_min, price_max = st.slider(
-            "Price range (₹)", lo, hi, default,
-            step=max(1, (hi - lo) // 200),
-            key=f"price_{category}",          # resets the slider when the category changes
-        )
-        st.caption(f"{len(cat_df)} products in this category (₹{lo:,} to ₹{hi:,})")
-
+    st.caption(f"{int((df.category == category).sum())} products in this category")
     query = st.text_input("Describe what you want (optional)", placeholder="e.g. red bridal, light weight")
     top_k = st.slider("Number of results", 3, 20, 9)
     per_brand = st.slider("Max per brand", 1, 5, 3)
     go = st.button("Recommend", type="primary")
 
 if go:
-    if price_min >= price_max:
-        st.warning("The price range is empty. Drag the right handle of the price slider to the right.")
+    res = recommend(df, emb, encode, category, query=query,
+                    top_k=top_k, max_per_brand=per_brand)
+    if res.empty:
+        st.warning("No products found for this category.")
     else:
-        res = recommend(df, emb, encode, category, price_min, price_max,
-                        query=query, top_k=top_k, max_per_brand=per_brand)
-        if res.empty:
-            st.warning("No products in this range. Try widening the price range.")
-        else:
-            cols = st.columns(3)
-            for i, (_, r) in enumerate(res.iterrows()):
-                with cols[i % 3]:
-                    try:
-                        st.image(r.image_url)
-                    except Exception:
-                        st.write("Image not available")
-                    st.markdown(f"**{r.title}**")
-                    st.write(f"₹{int(r.price):,} · {r.brand}")
-                    label = "Instagram post" if r.source == "instagram" else "View product"
-                    st.markdown(f"[{label}]({r.product_url})")
-                    st.caption(f"Match: {r.score:.2f}")
+        cols = st.columns(3)
+        for i, (_, r) in enumerate(res.iterrows()):
+            with cols[i % 3]:
+                try:
+                    st.image(r.image_url)
+                except Exception:
+                    st.write("Image not available")
+                st.markdown(f"**{r.title}**")
+                price_text = f"₹{int(r.price):,}" if pd.notna(r.price) else "Price on site"
+                st.write(f"{price_text} · {r.brand}")
+                label = "Instagram post" if r.source == "instagram" else "View product"
+                st.markdown(f"[{label}]({r.product_url})")
+                st.caption(f"Match: {r.score:.2f}")
 else:
-    st.info("Choose a category and price range in the sidebar, then click Recommend.")
+    st.info("Choose a category in the sidebar, then click Recommend.")
