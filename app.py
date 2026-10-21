@@ -13,7 +13,7 @@ MODEL_PATH = ROOT / "models" / "finetuned-minilm"
 DATA_PATH = ROOT / "data" / "processed" / "products.csv"
 EMB_PATH = ROOT / "data" / "processed" / "embeddings.npy"
 
-CATEGORIES = ["Saree", "Shirt", "Kurti"]
+CATEGORIES = ["Saree"]
 
 
 def to_group(category, title):
